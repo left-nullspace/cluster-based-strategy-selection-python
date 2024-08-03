@@ -8,7 +8,7 @@ Exploring the clustering of pre-designed trading strategies to see if there is a
 This project is designed to address the question, "Which of my trading strategies should I choose?" By employing clustering techniques, we group various trading strategies based on a comprehensive set of features. From these groups, we identify and select the "best" strategy within each cluster. The selected strategies are then combined to evaluate their collective performance and analyze the correlation between them. This approach not only helps in selecting optimal strategies but also in understanding the dynamics between different trading methods.
 
 #### Features
-- **Data Loading:** Automatically imports and cleans trading data and ETF returns.
+- **Data Loading:** Automatically imports and cleans trading data and ETF returns. Data must be exported from MC Portfolio Trader, export list of trades as a csv and select semicolon separated. A sample file is provided
 - **Feature Engineering:** Calculates a comprehensive set of financial metrics.
 - **Dimensionality Reduction:** Applies Principal Component Analysis (PCA) to reduce the number of features.
 - **Clustering:** Implements the K-Means algorithm with an Elbow method to determine the optimal number of clusters.
@@ -16,7 +16,7 @@ This project is designed to address the question, "Which of my trading strategie
 - **Correlation Analysis:** Includes functionality to analyze and visualize the correlation among selected strategies and across clusters.
 
 #### Usage
-Run the main.py file
+Run the main.py file once parameter are filled out 
 
 #### Files and Modules
 - `data_loading.py`: Handles data fetching and preprocessing.
