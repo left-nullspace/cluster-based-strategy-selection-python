@@ -9,7 +9,7 @@ def main():
     ##PARAMETERS
     raw_data_path = 'data/rawMCdata.csv'                    #strategy file export from multicharts
 
-    #symbols for feature generation
+    #symbols for feature generation, pick at least 2
     etf_symbols = ['SPY', 'QQQ', 'DIA', 'IWM',              #equities
                    'TLT', 'IEF',                            #fixed income
                    'HYG', 'LQD',                            #corporate bonds 
@@ -17,59 +17,70 @@ def main():
                    'XLF', 'XLK', 'XLE', 'XLV', 'XLY',       #sectors & industries
                    'EFA', 'EEM', 'VWO', 'EWJ',              #international and emerging markets
                    'VNQ']                                   #real estate
-    #etf symbols for feature generation, pick at least 2
-    start_date = '2007-01-01'               
-    end_date = '2024-06-01'
+
+    start_date = '2006-01-01'               
+    end_date = '2025-01-01'
 
 
-
-    # 1)DATA PROCESSING: cleaning, organizing data -----
-
-    # load and process data
+    # 1) DATA PROCESSING: cleaning, organizing data 
     returns_data = DataLoader.load_and_process(raw_data_path, 
                                                start_date,
-                                                 end_date)
-    # load the ETF data for creating features
+                                               end_date)
     etf_data = DataLoader.load_etf_returns(etf_symbols, 
                                            start_date, 
                                            end_date)
-    #split data (not for this problem, solution is unknown)
 
-
-
-    ## 2) FEATURE ENGINEERING: Creation -----
-    feature_data = FeatureEngineering.create_features(returns_data,
-                                                      etf_data)
+    ## 2) FEATURE ENGINEERING
+    feature_data = FeatureEngineering.create_features(returns_data, etf_data)
     print(feature_data)
-    # dimensionality Reduction with PCA
+
+    # 2.1) DIMENSIONALITY REDUCTION (PCA)
     components_df, _, _ = FeatureEngineering.apply_pca(feature_data, 
                                                        variance_threshold=0.85)
 
-    ## 3) CLUSTERING: using principal components to cluster the strategies
-    #Clustering.elbow_method(components_df, end=20, n_init=150) #uncomment if want to look at elbow plot
-    cluster_column = Clustering.cluster_data(components_df,
-                                             n_clusters=8, 
+    ## 2.2) CREATE CUSTOM METRIC
+    weights = [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
+    metrics = [
+        'NetProfit_last_5Y', 'Sortino_last_5Y', 'PNL/DD_last_5Y', 'Corr_SPY_last_5Y',
+        'NetProfit_all', 'Sortino_all', 'PNL/DD_all', 'Corr_SPY_all'
+    ]
+    custom_metric_name = 'CustomMetric'
+    feature_data = FeatureEngineering.create_custom_metric(feature_data, 
+                                                           weights, 
+                                                           metrics, 
+                                                           custom_metric_name)
+    print(f'feature DATA: \n {feature_data}')
+
+    ## 2.3) FILTER AFTER PCA, BASED ON CUSTOM METRIC
+    # EXAMPLE: SELECT TOP 50 STRATEGIES BY THE CUSTOM METRIC
+    top_n_strats = 50
+    # Sort from highest to lowest on that custom metric
+    sorted_by_custom = feature_data[custom_metric_name].sort_values(ascending=False)
+    top_strategies = sorted_by_custom.index[:top_n_strats]
+    # Filter the PCA components to only those top 50 strategies
+    filtered_components_df = components_df.loc[top_strategies]
+
+    ## 3) CLUSTERING: K-Means ON FILTERED STRATEGIES
+    #Clustering.elbow_method(filtered_components_df, end=20, n_init=150) #uncomment if you want elbow
+    cluster_column = Clustering.cluster_data(filtered_components_df,
+                                             n_clusters=6, 
                                              n_init=250)
-    grouped_data = feature_data.join(cluster_column) #now features with cluster col
 
+    ## 4) PORTFOLIO CREATION: SELECT TOP STRATEGIES FROM EACH CLUSTER
+    # We only have cluster labels for the top 50, so join on them
+    grouped_data = feature_data.join(cluster_column, how='inner')  # keep only top 50
 
-
-    ## 4) PORTFOLIO CREATION: Select top strategies from each cluster based on a metric & compare equity curves
-    
-    #analyzing clusters and a few portfolios
     Portfolio.compare_metrics(returns_data, 
                               grouped_data,
-                              metrics=['NetProfit', 'PNL/DD', 'Sharpe', 'Sortino_4y'])     #compare creating diff portfolios
-    Portfolio.plot_cluster_performance(returns_data, grouped_data)                      #equity curve of avg of each cluster
-    Portfolio.plot_cluster_correlation_matrix(returns_data, grouped_data)               #correlation btwn avg of each cluster
+                              metrics=['NetProfit_last_4Y', 'PNL/DD_last_4Y','CustomMetric', 'Corr_SPY_last_4Y'])
     
-    #design own portfolio for further analysis
-    Portfolio.create(returns_data, grouped_data, metric='NetProfit_4y')
+    Portfolio.plot_cluster_performance(returns_data, grouped_data)
+    Portfolio.plot_cluster_correlation_matrix(returns_data, grouped_data)
 
+    #CREATE SAMPLE PORTFOLIOS
+    Portfolio.create(returns_data, grouped_data, etf_data, metric='CustomMetric')
+    Portfolio.create(returns_data, grouped_data, etf_data, metric='NetProfit_last_3Y')
 
-
-
-    #Evaluation
     pass
 
 if __name__ == '__main__':

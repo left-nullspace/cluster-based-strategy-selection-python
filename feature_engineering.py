@@ -14,25 +14,35 @@ class FeatureEngineering:
 
     @staticmethod
     def create_features(returns, etf_returns):
-        
-        warnings.filterwarnings('ignore', category=pd.errors.PerformanceWarning) #supress warnings
+        warnings.filterwarnings('ignore', category=pd.errors.PerformanceWarning)  # suppress warnings
 
-        print('Creating features...')
+        print('creating features... please wait')
         features_df = pd.DataFrame(index=returns.columns)
-        time_windows = {'': None, '_3m': '3M', '_6m': '6M', '_1y': '1Y', '_2y': '2Y', '_3y': '3Y', '_4y': '4Y', '_5y': '5Y', '_10y': '10Y'}
-        for suffix, window in time_windows.items():
-            if window:
-                window_returns = returns.last(window)
-                window_etf_returns = etf_returns.last(window)
-            else:
-                window_returns = returns
-                window_etf_returns = etf_returns
-            features_df = FeatureEngineering.add_features(window_returns, window_etf_returns, features_df, suffix)
+        time_windows = ['1Y', '2Y', '3Y', '4Y', '5Y', '8Y', '10Y']
+        
+        # Calculate features for the full dataset
+        features_df = FeatureEngineering.add_features(returns, etf_returns, features_df, '_all')
+        
+        # Calculate features for 'last' time windows
+        for window in time_windows:
+            window_returns_last = returns.last(window)
+            window_etf_returns_last = etf_returns.last(window)
+            suffix_last = f'_last_{window}'
+            features_df = FeatureEngineering.add_features(window_returns_last, window_etf_returns_last, features_df, suffix_last)
+        
+        # Calculate features for 'first' time windows
+        for window in time_windows:
+            window_returns_first = returns.first(window)
+            window_etf_returns_first = etf_returns.first(window)
+            suffix_first = f'_first_{window}'
+            features_df = FeatureEngineering.add_features(window_returns_first, window_etf_returns_first, features_df, suffix_first)
+        
         return features_df
+
 
     @staticmethod
     def add_features(returns, etf_returns, features_df, suffix=''):
-        # Calculate features
+        # calculate features
         cumulative_profit = returns.cumsum()
         total_profit = returns.sum()
         max_drawdown = cumulative_profit.apply(FeatureEngineering.calculate_max_drawdown)
@@ -75,7 +85,6 @@ class FeatureEngineering:
     
     @staticmethod
     def apply_pca(feature_data, variance_threshold = 0.85, svd_solver='full', whiten=True):
-        print('=== PRINCIPAL COMPONENT ANALYSIS ===')
 
         #standardize
         print(f"number of features BEFORE dropping NaN columns: {feature_data.shape[1]}")
@@ -107,5 +116,38 @@ class FeatureEngineering:
         print(components_df.head())
         
         return components_df, explained_variance, cumulative_variance
-                                                    
+    
+    @staticmethod
+    def create_custom_metric(features_df, weights, metrics, metric_name):
+        """
+        Creates a custom metric by normalizing specified metrics including handling
+        correlation metrics differently, then computing a weighted sum of these metrics.
+
+        Parameters:
+            features_df (DataFrame): DataFrame containing the features.
+            weights (list): List of weights for each metric.
+            metrics (list): List of metric column names to include in the custom metric.
+            metric_name (str): Name for the new custom metric column.
+
+        Returns:
+            DataFrame: Updated DataFrame with the new custom metric.
+        """
+        # Initialize an empty DataFrame for normalized metrics
+        normalized_metrics = pd.DataFrame(index=features_df.index)
+        
+        # Normalize specified metrics using z-score, handle correlations differently
+        for metric in metrics:
+            if 'Corr' in metric:
+                # Transform correlations: 1 - |Correlation|
+                transformed = 1 - np.abs(features_df[metric])
+                # Normalize transformed data
+                normalized_metrics[metric] = (transformed - transformed.mean()) / transformed.std()
+            else:
+                # Regular z-score normalization for other metrics
+                normalized_metrics[metric] = (features_df[metric] - features_df[metric].mean()) / features_df[metric].std()
+
+        # Compute weighted sum of the normalized metrics
+        features_df[metric_name] = np.dot(normalized_metrics, weights)
+
+        return features_df
 

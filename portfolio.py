@@ -5,7 +5,7 @@ import seaborn as sns
 
 class Portfolio:
     @staticmethod
-    def create(returns, metrics_df, metric='Sharpe', cluster_col='Cluster'):
+    def create(returns, metrics_df, etf_data, metric='Sharpe', cluster_col='Cluster'):
         # Ensure metric column is numeric and handle NaN values
         metrics_df[metric] = pd.to_numeric(metrics_df[metric], errors='coerce')
         metrics_df = metrics_df.dropna(subset=[metric, cluster_col])
@@ -43,16 +43,24 @@ class Portfolio:
         
         # Calculate and print the correlation matrix for the selected strategies
         selected_returns = returns[top_strategies.index]
-        correlation_matrix = selected_returns.corr()
-        print("Correlation Matrix of Selected Top Strategies:")
-        print(correlation_matrix)
-        
-        # Plot the correlation matrix as a heatmap
+        correlation_matrix = selected_returns.corr()    
+        # plot the correlation matrix as a heatmap
         plt.figure(figsize=(10, 8))
         sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm')
         plt.title(f'Correlation Matrix of Selected Top Strategies based on {metric}')
         plt.show()
+
+        #calculating some statistics of the portfolios returns
+        combined_pct_change = combined_equity_curve.pct_change().dropna()
+        spy_pct_change = etf_data['SPY']
+        correlation_to_spy = combined_pct_change.corr(spy_pct_change)
+        print(f"Correlation of Portfolio to SPY based on {metric}: {correlation_to_spy:.4f}")
         
+        # calculate beta
+        covariance = combined_pct_change.cov(spy_pct_change)
+        variance_spy = spy_pct_change.var()
+        beta = covariance / variance_spy
+        print(f"Beta of Portfolio to SPY based on {metric}: {beta:.4f}")
 
     @staticmethod
     def compare_metrics(returns, metrics_df, cluster_col='Cluster', metrics=['NetProfit', 'PNL/DD', 'Sharpe', 'Sortino']):
@@ -94,10 +102,9 @@ class Portfolio:
         plt.ylabel('Cumulative Returns')
         plt.legend(loc='upper left')
         plt.show()
-        
-
 
         return combined_curves
+
 
     @staticmethod
     def plot_cluster_performance(returns, cluster_labels):
@@ -134,7 +141,8 @@ class Portfolio:
         correlation_matrix = avg_returns.corr()
 
         # Plot the correlation matrix
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(5, 4))
         sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm')
         plt.title('Corr Matrix of Avg Returns Between Clusters')
         plt.show()
+

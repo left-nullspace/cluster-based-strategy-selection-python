@@ -29,9 +29,16 @@ class DataLoader:
     
     @staticmethod
     def load_etf_returns(etf_symbols, start_date, end_date):
-        etf_data = yf.download(etf_symbols, start=start_date, end=end_date)    #yf returns it already in datetime
-        etf_data = etf_data['Adj Close'].pct_change().dropna()   #raw percentage returns
-        
-        #etf_data.index = etf_data.index.to_period('D')    #from datetime to a period index. i forgot why i did this
-        print(f"Data loaded from YAHOOFINANCE for metric and feature calculations: \n {etf_data.head(3)}")
+        # Download data with auto_adjust and rounding enabled.
+        etf_data = yf.download(
+            etf_symbols,
+            start=start_date,
+            end=end_date,
+            auto_adjust=True,
+            rounding=True
+        )
+        # With auto_adjust=True, use the adjusted 'Close' column to compute returns.
+        etf_data = etf_data['Close'].pct_change().dropna()   # raw percentage returns
+
+        print(f"Data loaded from YAHOOFINANCE for metric and feature calculations: \n{etf_data.head(3)}")
         return etf_data
